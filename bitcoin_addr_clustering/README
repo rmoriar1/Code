@@ -1,0 +1,40 @@
+How to run:
+The program is written in python3. Ensure that current directory includes rpm295_project_4.py, inputs.csv, outputs.csv, and transactions.csv and enter
+the command "python rpm295_project_4.py" via the terminal. It takes ~50 min to run to
+completion on my machine.
+
+1.
+11181 - block outputs != block inputs + coinbase 
+12042 - includes utxo that was referenced previously
+15567 - block outputs != block inputs + coinbase 
+30223 - includes utxo that was referenced previously
+52534 - coinbase < 50 BTC
+56565 - includes utxo that was referenced previously
+72902 - block outputs != block inputs + coinbase 
+75047 - block outputs != block inputs + coinbase
+79885 - references utxo from invalid block (52534)
+88755 - block outputs != block inputs + coinbase 
+91857 - block outputs != block inputs + coinbase 
+
+2. 
+There are 71889 existing UTXOs.
+The UTXO belonging to pk_id 138895 has the highest associated value of 90000 BTC.
+
+3.
+  a.
+  pk_id: 138871, 90000 BTC
+  b.
+  tx_id: 140455
+  c.
+  The joint control heuristic can register a false positive when two separate entities
+  combine inputs in a single transaction. For example two roommates could provide
+  common inputs into a single transaction to pay their landlord.
+  The serial control heuristic can register a false positive when someone has exactly
+  enough money in their account for the payment they want to make.
+  One source of false negatives is when an entity sends money to themselves but 
+  generates a change address in the process. This won't be seen as serial control
+  since a change address is used. 
+  You can increase clustering accuracy by monitoring the behavior of addresses
+  over time. If one address behaves significantly different from others associated with 
+  it you could reason they in fact belong to separate entities.
+    
