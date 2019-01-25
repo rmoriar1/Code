@@ -1,0 +1,89 @@
+---
+title: #hof_batting.Rmd by Ryan Moriarty
+---
+
+```{r}
+library(tidyverse)
+library(e1071)
+library(rpart)
+
+# load hof data and filter for players who have been inducted
+hof <- Lahman::HallOfFame %>%
+  filter(inducted == "Y", category == "Player")
+  
+pitching <-Lahman::Pitching
+
+batting <- Lahman::Batting %>%
+  # group by player and aggregate stats
+  group_by(playerID) %>%
+  summarise(lastSeason = max(yearID, na.rm = TRUE), G = sum(G, na.rm = TRUE),
+  AB = sum(AB, na.rm = TRUE), R = sum(R, na.rm = TRUE), H = sum(H, na.rm = 
+  TRUE), X2B = sum(X2B, na.rm = TRUE), X3B = sum(X3B, na.rm = TRUE), HR = 
+  sum(HR, na.rm = TRUE), RBI = sum(RBI, na.rm = TRUE), SB = sum(SB, na.rm =
+  TRUE), CS = sum(CS, na.rm = TRUE), BB = sum(BB, na.rm = TRUE), SO = sum(SO, 
+  na.rm = TRUE), IBB = sum(IBB, na.rm = TRUE), HBP = sum(HBP, na.rm = TRUE), SH
+  = sum(SH, na.rm = TRUE), SF = sum(SF, na.rm = TRUE), GIDP = sum(GIDP, na.rm = 
+  TRUE), S = n_distinct(yearID, na.rm = TRUE)) %>%
+  # filter for players with 10 or more seasons and whose last season was before 
+  # 2014, use heuristic if in pitching table and < 1000 AB they are a pitcher
+  filter(lastSeason < 2014, S >= 10, !(playerID %in% pitching$playerID & AB 
+    < 1000)) %>%
+  # add further stats
+  mutate(AVG = H/AB, OBP = (H+BB+HBP)/(AB+BB+HBP+SF), X1B = H-X2B-X3B-HR, TB =
+  X1B+X2B+2*X3B+3*HR, SLG = TB/AB, OPS = OBP+SLG, XB = TB-H, ISO = XB/AB, RC =
+  (H+BB)*(TB)/(AB), PA = AB+BB+HBP+SH+SF, wOBA = (.72*BB+.75*HBP+.9*X1B+1.24* 
+  X2B+1.56*X3B+1.95*HR)/PA, PApSO = PA/(SO+1), PApBB = PA/(BB+1)) %>%
+  # merge hof table
+  merge(hof, by = "playerID", all.x = TRUE) %>%
+  # change Y/N to 1/0
+  mutate(HOF = ifelse(inducted=="Y", 1, 0)) %>%
+  # filter irrelevant/redudant stats
+  subset(select = -c(2,3,7,8,12,13,14,15,16,17,18,19,20,23,24,27,30,34,35,36,37,38
+  ,39,40,41)) %>%
+  mutate_all(funs(replace(., is.na(.), 0)))
+
+  
+# create test set of players up for induction since 2016, remove them from data
+candidates_2016 <- subset(batting, playerID %in% c("bondsba01", "vizquom01", 
+  "sheffga01", "sosasa01", "mcgrifr01", "jonesch06", "thomeji01", "guerrvl01", 
+  "leeca01", "kentje01", "tejadmi01", "ramirma02", "heltoto01", "youngmi02", 
+  "jonesan01", "pierrju01", "rolensc01", "huffau01", "hudsoor01", "matsuhi01",
+  "polanpl01", "martied01", "walkela01", "rodriiv01", "raineti01", "renteed01",
+  "bagweje01", "cabre01", "ordonma01", "leede02", "camermi01", "posadjo01", 
+  "burrepa01", "morame01", "stairma01", "drewj.01", "varitja01", "guillca01", 
+  "blakeca01", "sanchfr01"))
+  
+batting <- subset(batting, !playerID %in% candidates_2016$playerID)
+
+# split data into test/train sets
+index <- 1:nrow(batting)
+testindex <- sample(index, trunc(length(index)/4))
+testset <- batting[testindex,-1]
+trainset <- batting[-testindex,-1]
+
+# perform grid search for best degree/cost parameter
+cross_val_matrix <- matrix(nrow = 11, ncol = 4)
+for (i in seq(1, 4, by=1))
+{
+  for (j in seq(-10, 10, by= 2))
+  {
+    svm.model <-svm(HOF ~., data = trainset, kernel = "polynomial", type = 
+      'C-classification', degree = i, cost = 2^j, cross = 10)
+    cross_val_matrix[(j + 10) / 2 + 1,i] = svm.model[[29]]
+  }
+}
+
+# train model then predict
+svm.model <-svm(HOF ~., data = trainset, kernel = "polynomial", type = 
+  'C-classification', degree = which(cross_val_matrix == max(cross_val_matrix), 
+  arr.ind = TRUE)[2], cost = 2^((which(cross_val_matrix == 
+  max(cross_val_matrix), arr.ind = TRUE)[1] -1) * 2 - 10))
+  
+svm.pred <-predict(svm.model, subset(candidates_2016, select = c(-1))[,-(ncol(testset))])
+
+print("Position player HOF predictions for 2016-2019:")
+candidates_2016$playerID[svm.pred == 1]
+
+```
+
+
